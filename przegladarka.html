@@ -367,7 +367,10 @@
   $('#m-date').innerHTML = mDates.map(d => `<option>${d}</option>`).join('');
   $('#m-diet').innerHTML = mDiets.map(d => `<option>${esc(d)}</option>`).join('');
   const domDieta = ['Wybór menu / SUPREME', 'Wybór menu'].find(x => mDiets.includes(x)); if (domDieta) $('#m-diet').value = domDieta;
-  const dzis = new Date().toISOString().slice(0, 10); $('#m-date').value = mDates.find(x => x >= dzis) || mDates.at(-1) || '';
+  // domyślnie: pierwszy dzień od dziś, w którym wybrana dieta ma menu (tiery Wyboru menu startują później niż diety gotowe)
+  const dzis = new Date().toISOString().slice(0, 10);
+  const dniDiety = new Set(D.menu.filter(r => r[1] === $('#m-diet').value).map(r => r[0]));
+  $('#m-date').value = mDates.find(x => x >= dzis && dniDiety.has(x)) || mDates.find(x => x >= dzis) || mDates.at(-1) || '';
   $('#m-date').onchange = $('#m-diet').onchange = renderMenu;
   function renderMenu() {
     const date = $('#m-date').value, diet = $('#m-diet').value;
