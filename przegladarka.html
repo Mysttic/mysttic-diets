@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mysttic-diets — baza dań</title>
+<!-- dane: dane.js (generuje scripts/scal.py; aktualizuje GitHub Actions — patrz README.md);
+     opcjonalnie prywatne/dane.js — historia zamówień, tylko lokalnie (poza gitem) -->
+<style>
+  :root {
+    --bg: #f4f5f7; --surface: #ffffff; --surface-2: #f0f2f4; --text: #1b1f24; --muted: #66707b; --border: #dfe3e8;
+    --accent: #2e7d5b; --accent-soft: #e3f2ea; --accent-text: #1f5f44; --warn: #b7791f; --warn-soft: #fbf1dc;
+    --chip: #eceff2; --chip-on: #2e7d5b; --chip-on-text: #fff; --shadow: 0 8px 30px rgba(0,0,0,.12);
+    --row-hover: #f3f8f5; --sel: #e3f2ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111417; --surface: #191d22; --surface-2: #20252b; --text: #e6e9ec; --muted: #98a2ad; --border: #2b323a;
+      --accent: #5cb98f; --accent-soft: #1c2f26; --accent-text: #8fd6b4; --warn: #e0a84a; --warn-soft: #33290f;
+      --chip: #262c33; --chip-on: #5cb98f; --chip-on-text: #0f1a14; --shadow: 0 8px 30px rgba(0,0,0,.5);
+      --row-hover: #1f2a25; --sel: #1c2f26;
+    }
+  }
+  * { box-sizing: border-box; }
+  .bez-historii .jh { display: none; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent-text); }
+  header { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .hwrap { max-width: 1440px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 17px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+  h1 small { font-weight: 400; color: var(--muted); margin-left: 8px; font-size: 12px; }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { background: none; border: 0; color: var(--muted); padding: 7px 12px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 550; }
+  nav button:hover { background: var(--surface-2); color: var(--text); }
+  nav button.on { background: var(--accent-soft); color: var(--accent-text); }
+  main { max-width: 1440px; margin: 0 auto; padding: 16px; }
+  section[hidden] { display: none; }
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .bar .grp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .bar label.l { color: var(--muted); font-size: 12px; margin-right: 2px; }
+  input[type=search], input[type=number], select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; }
+  input[type=search] { min-width: 260px; }
+  input[type=number] { width: 84px; }
+  .chip { background: var(--chip); border: 1px solid transparent; color: var(--text); border-radius: 999px; padding: 4px 11px; cursor: pointer; font: inherit; font-size: 13px; line-height: 1.3; }
+  .chip.on { background: var(--chip-on); color: var(--chip-on-text); }
+  .chip:hover { border-color: var(--accent); }
+  .btn { font: inherit; background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; }
+  .btn.ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn:hover { filter: brightness(1.05); }
+  .count { color: var(--muted); font-size: 13px; margin-left: auto; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  .tblwrap { overflow: auto; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; white-space: nowrap; z-index: 1; }
+  th.sorted { color: var(--accent-text); }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr.sel { background: var(--sel); }
+  .name { font-weight: 550; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--chip); color: var(--muted); margin: 1px 3px 1px 0; white-space: nowrap; }
+  .tag.acc { background: var(--accent-soft); color: var(--accent-text); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .muted { color: var(--muted); }
+  .score { font-variant-numeric: tabular-nums; }
+  .score b { font-weight: 600; }
+  /* drawer */
+  #drawer { position: fixed; top: 0; right: 0; height: 100%; width: min(520px, 100%); background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow); z-index: 30; transform: translateX(105%); transition: transform .2s ease; overflow: auto; padding: 18px 20px 40px; }
+  #drawer.open { transform: none; }
+  #drawer h2 { font-size: 18px; margin: 0 40px 6px 0; line-height: 1.3; }
+  #drawer .close { position: absolute; top: 12px; right: 12px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 10px 0; font-size: 13px; }
+  .kv div:nth-child(odd) { color: var(--muted); }
+  .macro { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+  .macro .m { background: var(--surface-2); border-radius: 10px; padding: 8px 10px; }
+  .macro .m b { display: block; font-size: 18px; font-weight: 650; }
+  .macro .m span { font-size: 11px; color: var(--muted); }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 16px 0 6px; }
+  ul.ing { margin: 0; padding-left: 18px; }
+  ul.ing li.major { font-weight: 600; }
+  .mini { width: 100%; font-size: 12px; }
+  .mini th, .mini td { padding: 4px 8px; }
+  /* diety */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+  .diet { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .diet h2 { font-size: 16px; margin: 0; }
+  .diet .meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .diet .meta b { color: var(--text); font-weight: 600; }
+  .diet p { margin: 4px 0; font-size: 13px; color: var(--text); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .diet p.full { display: block; }
+  .diet .vars { font-size: 12px; color: var(--muted); }
+  .diet .vars div { margin: 2px 0; }
+  .diet .foot { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; }
+  /* menu / historia */
+  .day { margin-bottom: 14px; }
+  .day h2 { font-size: 14px; margin: 0 0 6px; display: flex; gap: 12px; align-items: baseline; }
+  .day h2 .muted { font-weight: 400; font-size: 12px; }
+  .opt { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px 12px; padding: 7px 12px; border-top: 1px solid var(--border); cursor: pointer; align-items: baseline; }
+  .opt:first-child { border-top: 0; }
+  .opt:hover { background: var(--row-hover); }
+  .opt .pora { color: var(--muted); font-size: 12px; }
+  .opt .nums { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .opt .nums b { color: var(--text); font-weight: 600; }
+  .side { padding: 12px 14px; display: flex; gap: 12px; }
+  .side img { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; background: var(--surface-2); flex: none; }
+  .side .b { min-width: 0; }
+  .side h2 { font-size: 14px; margin: 0 0 4px; }
+  .side .p { font-size: 12px; color: var(--muted); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+  .side .p.full { display: block; }
+  /* losuj */
+  .los { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+  .los .c { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-height: 130px; }
+  .los .c .t { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
+  .los .c .n { font-weight: 600; font-size: 15px; cursor: pointer; }
+  .los .c.locked { outline: 2px solid var(--accent); }
+  .lock { background: none; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; padding: 2px 8px; color: var(--muted); font: inherit; font-size: 12px; }
+  .lock.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .total { display: flex; gap: 18px; flex-wrap: wrap; align-items: baseline; margin-top: 12px; padding: 12px 16px; }
+  .total b { font-size: 20px; font-weight: 650; }
+  .total .d { color: var(--muted); }
+  .total .ok { color: var(--accent-text); }
+  .total .bad { color: var(--warn); }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+  @media (max-width: 700px) { .macro { grid-template-columns: repeat(2, 1fr); } .opt { grid-template-columns: 1fr; } th.opt, td.opt { display: none; } input[type=search] { min-width: 0; width: 100%; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <h1>mysttic-diets <small id="meta"></small></h1>
+    <nav id="tabs">
+      <button data-tab="dania" class="on">Dania</button>
+      <button data-tab="diety">Diety</button>
+      <button data-tab="menu">Menu dzienne</button>
+      <button data-tab="historia">Moja historia</button>
+      <button data-tab="dodatki">Dodatki</button>
+      <button data-tab="losuj">Losuj dzień</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section id="dania">
+    <div class="bar">
+      <input type="search" id="q" placeholder="szukaj w nazwie lub składnikach…" autocomplete="off">
+      <div class="grp" id="f-pory"><span class="l">pora</span></div>
+      <div class="grp" id="f-zrodlo"><span class="l">źródło</span></div>
+      <div class="grp" id="f-termika"><span class="l">termika</span></div>
+    </div>
+    <div class="bar">
+      <div class="grp" id="f-diety"><span class="l">dieta</span></div>
+    </div>
+    <div class="bar">
+      <div class="grp"><span class="l">kcal</span><input type="number" id="kmin" placeholder="od"> <input type="number" id="kmax" placeholder="do"></div>
+      <div class="grp"><span class="l">białko ≥</span><input type="number" id="bmin" placeholder="g"></div>
+      <div class="grp"><span class="l">ocena ≥</span><input type="number" id="omin" placeholder="%" min="0" max="100"></div>
+      <div class="grp"><span class="l">bez składnika</span><input type="search" id="ex" placeholder="np. ryba, orzech" style="min-width:160px"></div>
+      <button class="btn ghost" id="reset">wyczyść</button>
+      <span class="count" id="cnt"></span>
+    </div>
+    <div class="tblwrap" style="max-height: calc(100vh - 230px)">
+      <table id="tbl">
+        <thead><tr>
+          <th data-k="danie">Danie</th><th data-k="pory">Pory</th><th data-k="etykiety">Dieta źródłowa</th>
+          <th class="num" data-k="kcal">kcal</th><th class="num" data-k="bialko">B</th><th class="num" data-k="tluszcz">T</th><th class="num" data-k="wegle">W</th>
+          <th class="num" data-k="ocena">Ocena</th><th class="num jh" data-k="jadlem">Jadłem</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="diety" hidden><div class="grid" id="dietgrid"></div></section>
+
+  <section id="menu" hidden>
+    <div class="bar">
+      <div class="grp"><span class="l">data</span><select id="m-date"></select></div>
+      <div class="grp"><span class="l">dieta</span><select id="m-diet"></select></div>
+      <span class="count" id="m-cnt"></span>
+    </div>
+    <div id="m-out"></div>
+  </section>
+
+  <section id="historia" hidden>
+    <div class="bar">
+      <div class="grp"><span class="l">zamówienie</span><select id="h-order"></select></div>
+      <span class="count" id="h-sum"></span>
+    </div>
+    <div id="h-out"></div>
+  </section>
+
+  <section id="dodatki" hidden>
+    <div class="bar"><input type="search" id="s-q" placeholder="szukaj w dodatkach…" autocomplete="off"><span class="count" id="s-cnt"></span></div>
+    <div class="grid" id="sidegrid"></div>
+  </section>
+
+  <section id="losuj" hidden>
+    <div class="bar">
+      <div class="grp"><span class="l">cel kcal</span><input type="number" id="l-kcal" value="2000" step="50"></div>
+      <div class="grp"><span class="l">± %</span><input type="number" id="l-tol" value="7" min="1" max="50"></div>
+      <div class="grp"><span class="l">ocena ≥</span><input type="number" id="l-omin" placeholder="%" value="90"></div>
+      <div class="grp" id="l-pory"><span class="l">pory</span></div>
+      <button class="btn" id="l-go">Losuj</button>
+      <button class="btn ghost" id="l-copy">kopiuj listę</button>
+    </div>
+    <div class="bar"><div class="grp" id="l-diety"><span class="l">dieta</span></div></div>
+    <div class="muted" style="font-size:12px">Filtry „bez składnika” i wyszukiwarka z zakładki Dania też obowiązują przy losowaniu. Kłódka blokuje danie przy kolejnym losowaniu.</div>
+    <div class="los" id="l-out"></div>
+    <div class="card total" id="l-total" hidden></div>
+  </section>
+</main>
+
+<aside id="drawer"><button class="btn ghost close" id="d-close">✕</button><div id="d-body"></div></aside>
+
+<script src="dane.js"></script>
+<script src="prywatne/dane.js"></script>
+<script>
+(function () {
+  const D = window.DANE;
+  if (!D) { document.body.innerHTML = '<p class="empty">Brak pliku dane.js — uruchom: python scripts/scal.py</p>'; return; }
+  // nakładka z historią zamówień (prywatne/dane.js) — jest tylko lokalnie; bez niej strona działa bez historii
+  const P = window.DANE_PRYWATNE || {};
+  D.historia = P.historia || []; D.zamowienia = P.zamowienia || [];
+  D.dania.push(...(P.dania || []));
+  { const po = new Map(D.dania.map(d => [d.id, d])); for (const d of D.dania) d.jadlem_daty = [];
+    for (const r of D.historia) { const d = po.get(r[5]); if (d) { d.jadlem_daty.push(r[0]); if (r[10]) d.waga_g = r[10]; } } }
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmt = (v, d = 0) => (v == null || v === '' || isNaN(v)) ? '–' : Number(v).toLocaleString('pl-PL', { maximumFractionDigits: d, minimumFractionDigits: 0 });
+  const PORY = ['Śniadanie', 'II śniadanie', 'Obiad', 'Podwieczorek', 'Kolacja'];
+  const byId = new Map(D.dania.map(d => [d.id, d]));
+  const dietNames = [...new Set(D.dania.flatMap(d => d.diety))].sort((a, b) => a.localeCompare(b, 'pl'));
+  const labelNames = [...new Set(D.dania.flatMap(d => d.etykiety))].sort((a, b) => a.localeCompare(b, 'pl'));
+  const zamById = new Map(D.zamowienia.map(z => [z.id, z]));
+  const maHistorie = D.zamowienia.length > 0;
+  if (!maHistorie) { document.body.classList.add('bez-historii'); $('#tabs [data-tab="historia"]').remove(); }
+  for (const d of D.dania) d._s = (d.danie + ' ' + d.skladniki.join(' ')).toLowerCase();
+  const AKT = (D.aktualizacja || '').slice(0, 10);
+  // „nowe” = dodane w ostatnich 14 dniach przed aktualizacją (ale nie przy pierwszym imporcie bazy)
+  const START = D.dania.reduce((m, d) => d.dodano < m ? d.dodano : m, '9999');
+  const NOWE_OD = AKT ? new Date(new Date(AKT).getTime() - 14 * 864e5).toISOString().slice(0, 10) : '9999';
+  for (const d of D.dania) d._nowe = d.dodano > START && d.dodano >= NOWE_OD;
+  const ileNowych = D.dania.filter(d => d._nowe).length;
+  const pasuje = (nazwa, wybrane) => [...wybrane].some(s => nazwa === s || nazwa.startsWith(s + ' / '));
+  $('#meta').textContent = `${D.dania.length} dań${ileNowych ? ` (${ileNowych} nowych)` : ''} · ${D.diety.length} diet · menu z ${new Set(D.menu.map(r => r[0])).size} dni · aktualizacja ${AKT || '–'}`;
+
+  // ---------- tabs ----------
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); });
+  function showTab(t) { $$('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t)); $$('main > section').forEach(s => s.hidden = s.id !== t); location.hash = t; }
+
+  // ---------- chips ----------
+  function chips(container, values, multi, onChange, labelFn) {
+    const state = new Set();
+    for (const v of values) {
+      const b = document.createElement('button'); b.className = 'chip'; b.textContent = labelFn ? labelFn(v) : v; b.dataset.v = v;
+      b.onclick = () => { if (state.has(v)) state.delete(v); else { if (!multi) state.clear(); state.add(v); } render(); onChange(); };
+      container.appendChild(b);
+    }
+    function render() { container.querySelectorAll('.chip').forEach(b => b.classList.toggle('on', state.has(b.dataset.v))); }
+    return { state, render, clear() { state.clear(); render(); }, set(vals) { state.clear(); vals.forEach(v => state.add(v)); render(); } };
+  }
+
+  // ---------- Dania ----------
+  const fPory = chips($('#f-pory'), PORY, true, applyFilters);
+  const fZr = chips($('#f-zrodlo'), (maHistorie ? ['historia'] : []).concat('menu', 'nowe'), true, applyFilters, v => ({ historia: 'jadłem', menu: 'w menu', nowe: 'nowe (14 dni)' })[v]);
+  const fTh = chips($('#f-termika'), ['na ciepło', 'na zimno', 'ciepło/zimno'], true, applyFilters);
+  const fDiety = chips($('#f-diety'), dietNames, true, applyFilters);
+  ['#q', '#kmin', '#kmax', '#bmin', '#omin', '#ex'].forEach(s => $(s).addEventListener('input', applyFilters));
+  $('#reset').onclick = () => { ['#q', '#kmin', '#kmax', '#bmin', '#omin', '#ex'].forEach(s => $(s).value = ''); [fPory, fZr, fTh, fDiety].forEach(f => f.clear()); applyFilters(); };
+  let sortK = 'danie', sortDir = 1, current = [];
+  $('#tbl thead').addEventListener('click', e => { const th = e.target.closest('th'); if (!th) return; const k = th.dataset.k; if (sortK === k) sortDir = -sortDir; else { sortK = k; sortDir = ['danie', 'pory', 'etykiety'].includes(k) ? 1 : -1; } applyFilters(); });
+
+  function filterDishes(opts = {}) {
+    const q = $('#q').value.trim().toLowerCase(), ex = $('#ex').value.trim().toLowerCase().split(/[,;]+/).map(s => s.trim()).filter(Boolean);
+    const kmin = +$('#kmin').value || 0, kmax = +$('#kmax').value || Infinity, bmin = +$('#bmin').value || 0, omin = opts.omin ?? (+$('#omin').value || 0);
+    const pory = opts.pory ?? fPory.state, diety = opts.diety ?? fDiety.state, zr = fZr.state, th = fTh.state;
+    return D.dania.filter(d => {
+      const m = d.makro || {};
+      if (q && !d._s.includes(q)) return false;
+      if (ex.length && ex.some(x => d._s.includes(x))) return false;
+      if (pory.size && !d.pory.some(p => pory.has(p))) return false;
+      if (diety.size && !d.diety.some(p => pasuje(p, diety))) return false;
+      if (zr.size && !(zr.has('historia') && d.jadlem_daty.length || zr.has('menu') && d.w_menu_daty.length || zr.has('nowe') && d._nowe)) return false;
+      if (th.size && !th.has(d.termika)) return false;
+      if ((m.kcal ?? 0) < kmin || (m.kcal ?? 0) > kmax) return false;
+      if ((m.bialko ?? 0) < bmin) return false;
+      if (omin && !(d.ocena_proc >= omin)) return false;
+      return true;
+    });
+  }
+  function applyFilters() {
+    current = filterDishes();
+    const val = d => ({ danie: d.danie, pory: d.pory.map(p => PORY.indexOf(p)).sort()[0] ?? 9, etykiety: d.etykiety.join(','), kcal: d.makro?.kcal ?? -1, bialko: d.makro?.bialko ?? -1, tluszcz: d.makro?.tluszcz ?? -1, wegle: d.makro?.wegle ?? -1, ocena: d.ocena_proc ?? -1, jadlem: d.jadlem_daty.length })[sortK];
+    current.sort((a, b) => { const x = val(a), y = val(b); return (typeof x === 'string' ? x.localeCompare(y, 'pl') : x - y) * sortDir; });
+    $$('#tbl th').forEach(t => { t.classList.toggle('sorted', t.dataset.k === sortK); t.textContent = t.textContent.replace(/ [▲▼]$/, '') + (t.dataset.k === sortK ? (sortDir > 0 ? ' ▲' : ' ▼') : ''); });
+    $('#cnt').textContent = `${current.length} z ${D.dania.length} dań`;
+    $('#tbl tbody').innerHTML = current.map(d => `<tr data-id="${d.id}">
+      <td class="name">${esc(d.danie)}${d._nowe ? ' <span class="tag acc">nowe</span>' : ''}</td>
+      <td>${d.pory.map(p => `<span class="tag">${esc(p)}</span>`).join('')}</td>
+      <td>${d.etykiety.map(p => `<span class="tag acc">${esc(p.replace(/^Dieta /, ''))}</span>`).join('')}</td>
+      <td class="num">${fmt(d.makro?.kcal)}</td><td class="num">${fmt(d.makro?.bialko)}</td><td class="num">${fmt(d.makro?.tluszcz)}</td><td class="num">${fmt(d.makro?.wegle)}</td>
+      <td class="num score">${d.ocena_proc != null ? `<b>${fmt(d.ocena_proc, 1)}%</b> <span class="muted">(${fmt(d.liczba_ocen)})</span>` : '<span class="muted">–</span>'}</td>
+      <td class="num jh">${d.jadlem_daty.length ? `${d.jadlem_daty.length}× <span class="muted">${d.jadlem_daty.at(-1)}</span>` : '<span class="muted">–</span>'}</td>
+    </tr>`).join('');
+  }
+  $('#tbl tbody').addEventListener('click', e => { const tr = e.target.closest('tr'); if (tr) openDish(+tr.dataset.id); });
+
+  // ---------- drawer ----------
+  const drawer = $('#drawer');
+  $('#d-close').onclick = closeDrawer;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+  function closeDrawer() { drawer.classList.remove('open'); $$('#tbl tr.sel').forEach(t => t.classList.remove('sel')); }
+  function openDish(id) {
+    const d = byId.get(id); if (!d) return;
+    $$('#tbl tr.sel').forEach(t => t.classList.remove('sel')); $(`#tbl tr[data-id="${id}"]`)?.classList.add('sel');
+    const m = d.makro || {}, major = new Set(d.skladniki_glowne);
+    const menuByDiet = {}; for (const r of D.menu) if (r[6] === id) (menuByDiet[r[1]] ||= new Set()).add(r[0]);
+    const vars = Object.entries(d.warianty || {}).sort((a, b) => a[0] - b[0]);
+    $('#d-body').innerHTML = `
+      <h2>${esc(d.danie)}</h2>
+      <div>${d.pory.map(p => `<span class="tag">${esc(p)}</span>`).join('')}${d.etykiety.map(p => `<span class="tag acc">${esc(p)}</span>`).join('')}${d.termika ? `<span class="tag">${esc(d.termika)}</span>` : ''}</div>
+      <div class="macro">
+        <div class="m"><b>${fmt(m.kcal)}</b><span>kcal</span></div><div class="m"><b>${fmt(m.bialko, 1)}</b><span>białko g</span></div>
+        <div class="m"><b>${fmt(m.tluszcz, 1)}</b><span>tłuszcz g</span></div><div class="m"><b>${fmt(m.wegle, 1)}</b><span>węgle g</span></div>
+      </div>
+      <div class="kv">
+        <div>błonnik / cukry</div><div>${fmt(m.blonnik, 1)} g / ${fmt(m.cukry, 1)} g</div>
+        <div>sól / nasycone</div><div>${fmt(m.sol, 2)} g / ${fmt(m.nasycone, 1)} g</div>
+        <div>waga porcji</div><div>${d.waga_g ? fmt(d.waga_g) + ' g' : '<span class="muted">brak danych</span>'}</div>
+        <div>makro dla wariantu</div><div>${esc(d.makro_dla_wariantu_kcal || '–')} kcal</div>
+        <div>ocena klientów</div><div>${d.ocena_proc != null ? `<b>${fmt(d.ocena_proc, 1)}%</b> pozytywnych · ${fmt(d.liczba_ocen)} ocen` : '<span class="muted">brak</span>'}</div>
+        <div>alergeny</div><div>${d.alergeny.length ? d.alergeny.map(a => `<span class="tag warn">${esc(a)}</span>`).join('') : '<span class="muted">nie podano</span>'}</div>
+      </div>
+      ${vars.length > 1 ? `<h3>Makro wg wariantu diety</h3><table class="mini"><thead><tr><th>wariant</th><th class="num">kcal</th><th class="num">B</th><th class="num">T</th><th class="num">W</th></tr></thead><tbody>
+        ${vars.map(([k, v]) => `<tr><td>${esc(k)} kcal</td><td class="num">${fmt(v.kcal)}</td><td class="num">${fmt(v.bialko, 1)}</td><td class="num">${fmt(v.tluszcz, 1)}</td><td class="num">${fmt(v.wegle, 1)}</td></tr>`).join('')}</tbody></table>` : ''}
+      <h3>Składniki <span class="muted" style="text-transform:none;letter-spacing:0">(pogrubione = główne)</span></h3>
+      ${d.skladniki.length ? `<ul class="ing">${d.skladniki.map(s => `<li class="${major.has(s) ? 'major' : ''}">${esc(s)}</li>`).join('')}</ul>` : '<span class="muted">brak</span>'}
+      <h3>Dostępne w dietach</h3><div>${d.diety.map(p => `<span class="tag">${esc(p)}</span>`).join('')}</div>
+      ${Object.keys(menuByDiet).length ? `<h3>W menu</h3><div class="kv">${Object.entries(menuByDiet).sort().map(([k, v]) => { const x = [...v].sort(); return `<div>${esc(k)}</div><div>${x.length > 6 ? `${x.length} dni, ostatnio ${x.slice(-4).join(', ')}` : x.join(', ')}</div>`; }).join('')}</div>` : ''}
+      <div class="muted" style="font-size:12px;margin-top:14px">w bazie od ${esc(d.dodano || '–')}${d.zrodlo_opisu ? ` · opis i makro z: ${esc(d.zrodlo_opisu)}` : ''}</div>
+      ${d.jadlem_daty.length ? `<h3>Jadłem</h3><div>${d.jadlem_daty.length}× — ${d.jadlem_daty.join(', ')}</div>` : ''}`;
+    drawer.classList.add('open');
+  }
+
+  // ---------- Diety ----------
+  function groupVariants(vs) {
+    const g = {};
+    for (const v of vs) { const m = v.match(/^(?:(.+?) \/ )?(.+?): (\d+) kcal \((.*?)\)$/); if (!m) continue; const tier = m[1] || m[2], opt = m[1] ? m[2] : ''; const o = (g[tier] ||= { opts: new Set(), kcal: [], price: [] }); if (opt) o.opts.add(opt); o.kcal.push(+m[3]); const p = parseFloat(m[4]); if (!isNaN(p)) o.price.push(p); }
+    return Object.entries(g).map(([t, o]) => { const k = [...new Set(o.kcal)].sort((a, b) => a - b), p = o.price; return `<div><b>${esc(t)}</b>${o.opts.size ? ' — ' + [...o.opts].map(x => esc(x.replace(/^Dieta /, ''))).join(', ') : ''}<br>${k[0]}–${k.at(-1)} kcal${p.length ? ` · ${Math.min(...p).toFixed(2)}–${Math.max(...p).toFixed(2)} zł/dzień` : ''}</div>`; }).join('');
+  }
+  $('#dietgrid').innerHTML = D.diety.map(x => `<div class="card diet">
+    <h2>${esc(x.dieta)}</h2>
+    <div class="meta"><span>${esc(x.program)}</span><span>od <b>${esc(x.cena_min || '–')}</b></span>${x.ocena ? `<span><b>${fmt(x.ocena, 2)}</b>/5 · ${fmt(x.opinii)} opinii</span>` : ''}<span><b>${x.dan_w_bazie}</b> dań w bazie</span>${x.dan_dziennie ? `<span><b>${x.dan_dziennie}</b> dań dziennie do wyboru</span>` : ''}</div>
+    ${x.opis ? `<p onclick="this.classList.toggle('full')">${esc(x.opis)}</p>` : ''}
+    <div class="vars">${groupVariants(x.warianty)}</div>
+    <div class="foot"><button class="btn ghost" data-diet="${esc(x.dieta)}">pokaż dania</button><button class="btn ghost" data-mdiet="${esc(x.dieta)}">menu dzienne</button></div>
+  </div>`).join('');
+  $('#dietgrid').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.diet) { fDiety.set([b.dataset.diet]); applyFilters(); showTab('dania'); }
+    if (b.dataset.mdiet) { const n = b.dataset.mdiet, o = mDiets.find(x => x === n) || (domDieta?.startsWith(n + ' / ') ? domDieta : null) || mDiets.find(x => x.startsWith(n + ' / ')); if (o) $('#m-diet').value = o; renderMenu(); showTab('menu'); }
+  });
+
+  // ---------- Menu dzienne ----------
+  const mDates = [...new Set(D.menu.map(r => r[0]))].sort(), mDiets = [...new Set(D.menu.map(r => r[1]))].sort((a, b) => a.localeCompare(b, 'pl'));
+  $('#m-date').innerHTML = mDates.map(d => `<option>${d}</option>`).join('');
+  $('#m-diet').innerHTML = mDiets.map(d => `<option>${esc(d)}</option>`).join('');
+  const domDieta = ['Wybór menu / SUPREME', 'Wybór menu'].find(x => mDiets.includes(x)); if (domDieta) $('#m-diet').value = domDieta;
+  const dzis = new Date().toISOString().slice(0, 10); $('#m-date').value = mDates.find(x => x >= dzis) || mDates.at(-1) || '';
+  $('#m-date').onchange = $('#m-diet').onchange = renderMenu;
+  function renderMenu() {
+    const date = $('#m-date').value, diet = $('#m-diet').value;
+    const rows = D.menu.filter(r => r[0] === date && r[1] === diet);
+    $('#m-cnt').textContent = rows.length ? `${rows.length} pozycji · wariant ${rows[0][3]} kcal` : 'brak menu';
+    const byPora = {}; for (const r of rows) (byPora[r[5]] ||= []).push(r);
+    $('#m-out').innerHTML = PORY.filter(p => byPora[p]).map(p => `<div class="day card"><h2 style="padding:10px 12px 4px">${p} <span class="muted">${byPora[p].length} do wyboru</span></h2>
+      ${byPora[p].sort((a, b) => (b[11] ?? -1) - (a[11] ?? -1)).map(r => `<div class="opt" data-id="${r[6]}"><span class="pora">${esc((r[4] || '').replace(/^Dieta /, ''))}</span><span class="name">${esc(byId.get(r[6])?.danie || '')}</span>
+        <span class="nums"><b>${fmt(r[7])}</b> kcal · B ${fmt(r[8])} · T ${fmt(r[9])} · W ${fmt(r[10])}${r[12] > 0 ? ` · <b>${fmt(r[11], 1)}%</b> (${fmt(r[12])})` : ''}</span></div>`).join('')}</div>`).join('') || '<div class="empty">Brak menu dla tej daty i diety</div>';
+  }
+  $('#m-out').addEventListener('click', e => { const o = e.target.closest('.opt'); if (o) openDish(+o.dataset.id); });
+
+  // ---------- Historia ----------
+  $('#h-order').innerHTML = [...D.zamowienia].reverse().map(z => `<option value="${z.id}">#${z.id} · ${z.od} → ${z.do} · ${esc(z.wariant)} ${z.kcal} kcal</option>`).join('');
+  $('#h-order').onchange = renderHist;
+  function renderHist() {
+    const id = +$('#h-order').value, z = zamById.get(id);
+    const rows = D.historia.filter(r => r[1] === id);
+    const days = {}; for (const r of rows) (days[r[0]] ||= []).push(r);
+    const dayKeys = Object.keys(days).sort(), kcalDays = dayKeys.map(d => days[d].reduce((a, r) => a + (r[6] || 0), 0));
+    $('#h-sum').textContent = `${z.dostaw} dostaw · ${rows.length} posiłków · śr. ${fmt(kcalDays.reduce((a, b) => a + b, 0) / (kcalDays.length || 1))} kcal/dzień · ${fmt(z.koszt, 2)} zł`;
+    $('#h-out').innerHTML = dayKeys.map((d, i) => `<div class="day card"><h2 style="padding:10px 12px 4px">${d} <span class="muted">${new Date(d).toLocaleDateString('pl-PL', { weekday: 'long' })} · ${fmt(kcalDays[i])} kcal</span></h2>
+      ${days[d].sort((a, b) => PORY.indexOf(a[4]) - PORY.indexOf(b[4])).map(r => `<div class="opt" data-id="${r[5]}"><span class="pora">${esc(r[4])}</span><span class="name">${esc(byId.get(r[5])?.danie || '')}</span>
+        <span class="nums"><b>${fmt(r[6])}</b> kcal · B ${fmt(r[7])} · T ${fmt(r[8])} · W ${fmt(r[9])} · ${fmt(r[10])} g</span></div>`).join('')}</div>`).join('');
+  }
+  $('#h-out').addEventListener('click', e => { const o = e.target.closest('.opt'); if (o) openDish(+o.dataset.id); });
+
+  // ---------- Dodatki ----------
+  const side = D.dodatki || [];
+  function renderSide() {
+    const q = $('#s-q').value.trim().toLowerCase();
+    const rows = side.filter(x => !q || (x.nazwa + ' ' + x.opis).toLowerCase().includes(q)).sort((a, b) => (b.dostepny !== false) - (a.dostepny !== false));
+    $('#s-cnt').textContent = `${rows.length} z ${side.length} dodatków`;
+    $('#sidegrid').innerHTML = rows.map(x => `<div class="card side">${x.obraz ? `<img src="${esc(x.obraz)}" alt="" loading="lazy">` : '<div style="width:84px;flex:none"></div>'}<div class="b">
+      <h2>${esc(x.nazwa)}${x.dostepny === false ? ' <span class="tag warn">już niedostępny</span>' : ''}</h2>
+      <div class="muted" style="font-size:12px;margin-bottom:4px"><b style="color:var(--text)">${fmt(x.cena, 2)} zł</b>${x.kcal != null ? ` · ${fmt(x.kcal)} kcal` : ''}${x.bialko != null ? ` · B ${fmt(x.bialko)} · T ${fmt(x.tluszcz)} · W ${fmt(x.wegle)}` : ''}${x.liczba_ocen ? ` · ${fmt(x.ocena, 1)}% (${fmt(x.liczba_ocen)})` : ''}</div>
+      <div class="p" onclick="this.classList.toggle('full')">${esc((x.opis || '').replace(/ \| /g, '\n'))}</div></div></div>`).join('') || '<div class="empty">Brak dodatków w danych</div>';
+  }
+  $('#s-q').addEventListener('input', renderSide);
+
+  // ---------- Losuj ----------
+  const lPory = chips($('#l-pory'), PORY, true, () => {}); lPory.set(PORY);
+  const lDiety = chips($('#l-diety'), dietNames, true, () => {});
+  let picks = {}, locked = new Set();
+  $('#l-go').onclick = losuj;
+  function losuj() {
+    const target = +$('#l-kcal').value || 2000, tol = (+$('#l-tol').value || 7) / 100 * target, omin = +$('#l-omin').value || 0;
+    const pory = PORY.filter(p => lPory.state.has(p));
+    const pools = {}; for (const p of pory) pools[p] = filterDishes({ pory: new Set([p]), diety: lDiety.state, omin }).filter(d => d.makro?.kcal > 0);
+    const missing = pory.filter(p => !pools[p].length);
+    if (missing.length) { $('#l-out').innerHTML = `<div class="empty">Brak dań spełniających filtry dla: ${missing.join(', ')}</div>`; $('#l-total').hidden = true; return; }
+    let best = null, bestDiff = Infinity;
+    for (let i = 0; i < 400; i++) {
+      const c = {}; let sum = 0;
+      for (const p of pory) { const d = locked.has(p) && picks[p] ? picks[p] : pools[p][Math.floor(Math.random() * pools[p].length)]; c[p] = d; sum += d.makro.kcal; }
+      const diff = Math.abs(sum - target);
+      if (diff < bestDiff) { best = c; bestDiff = diff; }
+      if (diff <= tol) break;
+    }
+    picks = best; renderLos(target, tol);
+  }
+  function renderLos(target, tol) {
+    const pory = PORY.filter(p => picks[p]);
+    $('#l-out').innerHTML = pory.map(p => { const d = picks[p], m = d.makro; return `<div class="card c ${locked.has(p) ? 'locked' : ''}" data-p="${p}">
+      <div class="t"><span>${p}</span><button class="lock ${locked.has(p) ? 'on' : ''}" data-p="${p}" title="zablokuj przy kolejnym losowaniu">${locked.has(p) ? '🔒 zablokowane' : '🔓 blokuj'}</button></div>
+      <div class="n" data-id="${d.id}">${esc(d.danie)}</div>
+      <div class="muted" style="font-size:12px">${esc(d.etykiety.map(x => x.replace(/^Dieta /, '')).join(', '))}${d.termika ? ' · ' + esc(d.termika) : ''}</div>
+      <div class="nums" style="font-size:12px"><b>${fmt(m.kcal)}</b> kcal · B ${fmt(m.bialko)} · T ${fmt(m.tluszcz)} · W ${fmt(m.wegle)}${d.ocena_proc != null ? ` · ${fmt(d.ocena_proc, 1)}% (${fmt(d.liczba_ocen)})` : ''}</div></div>`; }).join('');
+    const s = k => pory.reduce((a, p) => a + (picks[p].makro[k] || 0), 0), kc = s('kcal'), diff = kc - target;
+    $('#l-total').hidden = false;
+    $('#l-total').innerHTML = `<span><b>${fmt(kc)}</b> kcal <span class="d ${Math.abs(diff) <= tol ? 'ok' : 'bad'}">(${diff >= 0 ? '+' : ''}${fmt(diff)} vs cel ${fmt(target)})</span></span>
+      <span>białko <b>${fmt(s('bialko'))}</b> g</span><span>tłuszcz <b>${fmt(s('tluszcz'))}</b> g</span><span>węgle <b>${fmt(s('wegle'))}</b> g</span>`;
+  }
+  $('#l-out').addEventListener('click', e => {
+    const l = e.target.closest('.lock'); if (l) { const p = l.dataset.p; if (locked.has(p)) locked.delete(p); else locked.add(p); renderLos(+$('#l-kcal').value || 2000, (+$('#l-tol').value || 7) / 100 * (+$('#l-kcal').value || 2000)); return; }
+    const n = e.target.closest('.n'); if (n) openDish(+n.dataset.id);
+  });
+  $('#l-copy').onclick = () => { const t = PORY.filter(p => picks[p]).map(p => `${p}: ${picks[p].danie} (${fmt(picks[p].makro.kcal)} kcal)`).join('\n'); if (t) navigator.clipboard?.writeText(t); };
+
+  // ---------- init ----------
+  applyFilters(); renderMenu(); if (maHistorie) renderHist(); renderSide();
+  const h = location.hash.slice(1); if (['dania', 'diety', 'menu', 'historia', 'dodatki', 'losuj'].includes(h) && $(`#tabs [data-tab="${h}"]`)) showTab(h);
+})();
+</script>
+</body>
+</html>

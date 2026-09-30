@@ -1,0 +1,52 @@
+name: Aktualizuj menu
+
+on:
+  schedule:
+    - cron: '23 3 * * 1,4'  # pon. i czw. 03:23 UTC (05:23 czasu letniego w Polsce)
+  workflow_dispatch:        # ręcznie: Actions → Aktualizuj menu → Run workflow
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aktualizuj-menu
+  cancel-in-progress: false
+
+jobs:
+  aktualizuj:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Pobierz menu i scal z bazą (bez dubli)
+        run: python3 scripts/pobierz.py
+
+      - name: Zapisz zmiany w repo
+        run: |
+          git add data dane.js
+          if git diff --cached --name-only | grep -E 'historia\.csv|zamowienia\.json|prywatne'; then
+            echo "BŁĄD: historia zamówień nie może trafić do repo"; exit 1
+          fi
+          python3 scripts/strona.py "$RUNNER_TEMP/strona" > /dev/null  # przerywa, gdy dane.js ma ślady historii
+          if git diff --cached --quiet; then
+            echo "Brak zmian w danych — nic do zapisania."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -F raw/commit_msg.txt
+          for proba in 1 2 3; do
+            git push && exit 0
+            git pull --rebase -q
+          done
+          exit 1
+
+      - name: Surowe odpowiedzi API (artefakt na 14 dni)
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: raw-${{ github.run_id }}
+          path: raw/*.json.gz
+          retention-days: 14
+          if-no-files-found: ignore

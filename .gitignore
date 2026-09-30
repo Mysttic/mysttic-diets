@@ -1,0 +1,11 @@
+# surowe odpowiedzi API (duże; w Actions trafiają do artefaktów)
+raw/
+# historia zamówień i jej nakładka dla przeglądarki — tylko lokalnie, nigdy w repo
+prywatne/
+data/historia.csv
+data/zamowienia.json
+dane_prywatne.js
+# podgląd strony (scripts/strona.py)
+_site/
+__pycache__/
+*.pyc

@@ -1,0 +1,44 @@
+name: Strona (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - przegladarka.html
+      - dane.js
+      - scripts/strona.py
+      - .github/workflows/strona.yml
+  workflow_run:             # commit bota z „Aktualizuj menu” (GITHUB_TOKEN) nie odpala zdarzenia push
+    workflows: [Aktualizuj menu]
+    types: [completed]
+  workflow_dispatch:        # ręcznie: Actions → Strona (GitHub Pages) → Run workflow
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  wdroz:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.wdrozenie.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5  # przy workflow_run: najnowszy main, już z commitem bota
+
+      - name: Zbuduj publiczną kopię (bez historii zamówień)
+        run: python3 scripts/strona.py _site
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - id: wdrozenie
+        uses: actions/deploy-pages@v4
